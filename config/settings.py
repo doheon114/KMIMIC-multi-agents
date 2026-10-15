@@ -14,6 +14,10 @@ class Settings:
     llm_api_key: str = ""
     llm_timeout_seconds: float = 25.0
     llm_max_concurrent_calls: int = 1
+    mini_llm_provider: str = "mock"
+    mini_llm_model: str = "demo-mini"
+    mini_llm_base_url: str = ""
+    mini_llm_api_key: str = ""
     allow_remote_data_transfer: bool = False
     rag_provider: str = "mock"
     rag_ask_url: str = ""
@@ -33,6 +37,10 @@ class Settings:
             llm_api_key=os.getenv("LLM_API_KEY", ""),
             llm_timeout_seconds=float(os.getenv("LLM_TIMEOUT_SECONDS", "25")),
             llm_max_concurrent_calls=max(1, int(os.getenv("LLM_MAX_CONCURRENT_CALLS", "1"))),
+            mini_llm_provider=os.getenv("MINI_LLM_PROVIDER", "mock").strip().lower(),
+            mini_llm_model=os.getenv("MINI_LLM_MODEL", "demo-mini"),
+            mini_llm_base_url=os.getenv("MINI_LLM_BASE_URL", ""),
+            mini_llm_api_key=os.getenv("MINI_LLM_API_KEY", ""),
             allow_remote_data_transfer=_bool("ALLOW_REMOTE_DATA_TRANSFER"),
             rag_provider=os.getenv("RAG_PROVIDER", "mock").strip().lower(),
             rag_ask_url=os.getenv("RAG_ASK_URL", ""),

@@ -11,6 +11,8 @@ from config.settings import Settings
 from data.loader import load_sample, parse_patients
 from data.schemas import PatientInput, FinalReport
 from evaluation.baseline import run_baseline
+from evaluation.batch_runner import run_batch
+from evaluation.demo_cases import make_demo_cases
 from services.pipeline import Pipeline
 from ui.styles import STYLE
 
@@ -41,7 +43,7 @@ def workflow_html(states: dict[str, str]) -> str:
         state = states.get(name, "waiting")
         progress = 100 if state == "completed" else 0
         word = {"waiting": "Waiting", "running": "Analyzing…",
-                "completed": "Completed", "failed": "Failed"}.get(state, "Waiting")
+                "completed": "Completed", "failed": "Failed", "skipped": "Skipped"}.get(state, "Waiting")
         cards.append(
             f'<div class="hf-agent-status hf-{name} hf-{state}" '
             f'style="left:{x}%;top:{y}%">'
@@ -75,7 +77,8 @@ with st.sidebar:
     st.write("📚 Evidence & Similarity")
     st.write("🛡️ Safety Review")
     st.divider()
-    st.caption(f"LLM: {settings.llm_provider} / {settings.llm_model}")
+    st.caption(f"Mini: {settings.mini_llm_provider} / {settings.mini_llm_model}")
+    st.caption(f"Chief: {settings.llm_provider} / {settings.llm_model}")
     st.caption(f"RAG: {settings.rag_provider} · Similarity: {settings.similarity_provider}")
     st.warning("Not for clinical decisions · No real SMS")
 
@@ -137,7 +140,7 @@ with left:
             {"field": key, "value": "—" if value is None else str(value)}
             for key, value in patient.model_dump(mode="json").items()
         ]), hide_index=True, height=280)
-    baseline_enabled = st.checkbox("Compare single LLM baseline", value=True)
+    baseline_enabled = st.checkbox("Compare single LLM baseline (extra model call)", value=False)
     run_clicked = st.button("▶ Run HF-PathGuard Analysis", type="primary", width="stretch", disabled=patient is None)
 
 patient_signature = patient.model_dump_json() if patient is not None else None
@@ -155,19 +158,33 @@ workflow_slot.markdown(workflow_html(agent_states), unsafe_allow_html=True)
 
 if run_clicked and patient:
     agent_states = {name: "waiting" for name in AGENT_LABELS}
-    for name in BRANCHES:
-        agent_states[name] = "running"
+    # Precheck runs first; no specialist/model jobs start before its decision.
     st.session_state["agent_states"] = agent_states
     workflow_slot.markdown(workflow_html(agent_states), unsafe_allow_html=True)
 
     def update_agent(node: str, state: str) -> None:
+        if node == "dispatch":
+            for branch in BRANCHES:
+                agent_states[branch] = "running"
+        if node == "abstain":
+            for name in BRANCHES + ("safety",):
+                agent_states[name] = "skipped"
+            agent_states["final"] = "completed"
+        if node == "mini_safety":
+            agent_states["safety"] = "completed"
+        if node == "safety":
+            agent_states["safety"] = "running"
+        if node in {"chief", "simple"}:
+            agent_states["final"] = "running"
         if node not in agent_states:
+            workflow_slot.markdown(workflow_html(agent_states), unsafe_allow_html=True)
             return
-        agent_states[node] = state
+        if node != "safety":
+            agent_states[node] = state
         if all(agent_states[b] == "completed" for b in BRANCHES):
             if agent_states["safety"] == "waiting":
                 agent_states["safety"] = "running"
-        if agent_states["safety"] == "completed":
+        if agent_states["safety"] == "completed" and agent_states["final"] == "waiting":
             agent_states["final"] = "running" if agent_states["final"] != "completed" else "completed"
         workflow_slot.markdown(workflow_html(agent_states), unsafe_allow_html=True)
 
@@ -189,7 +206,8 @@ if run_clicked and patient:
         st.error(f"Analysis could not complete ({type(exc).__name__}). Please review configuration and logs.")
     else:
         try:
-            st.session_state["baseline"] = run_baseline(patient, pipeline.llm) if baseline_enabled else None
+            st.session_state["baseline"] = (run_baseline(patient, pipeline.llm)
+                if baseline_enabled and report.overall_status != "INSUFFICIENT_DATA" else None)
         except Exception as exc:
             st.session_state["baseline"] = None
             st.warning(f"Optional baseline comparison unavailable ({type(exc).__name__}).")
@@ -248,3 +266,49 @@ with right:
         st.info("Safety review will appear after analysis.")
 
 st.caption("Research prototype · Fictional data only · No diagnosis, treatment advice, or automated alerts")
+
+st.divider()
+with st.expander("🧪 Batch Evaluation · Up to 30 Patients", expanded=False):
+    st.caption("Sequential processing. Synthetic research data only. A failed case will not stop the batch.")
+    batch_mode = st.radio("Batch source", ["30 Synthetic Demo Cases", "Upload CSV / JSON"],
+                          key="batch_mode", horizontal=True)
+    batch_patients = None
+    if batch_mode == "30 Synthetic Demo Cases":
+        batch_patients = make_demo_cases()
+        st.success(f"Prepared {len(batch_patients)} fictional patients")
+    else:
+        batch_file = st.file_uploader("Batch dataset (1–30 patients)", type=["csv", "json"],
+                                      key="batch_upload")
+        if batch_file:
+            try:
+                batch_patients = parse_patients(batch_file.getvalue(), batch_file.name)
+                if len(batch_patients) > 30:
+                    st.error("Batch limit: 30 patients per run")
+                    batch_patients = None
+                else:
+                    st.info(f"Ready: {len(batch_patients)} patients")
+            except (ValidationError, ValueError, UnicodeError) as exc:
+                st.error(f"Could not validate batch: {exc}")
+    st.warning("Remote GLM settings may send patient data outside this computer. "
+               "Use only authorized data and verify API limits first.")
+    if st.button("▶ Run Sequential Batch Evaluation",
+                 disabled=not batch_patients, key="run_batch"):
+        bar = st.progress(0, text="Preparing evaluation")
+        status_area = st.empty()
+        def update_batch(current: int, total: int, row: dict) -> None:
+            bar.progress(current / total, text=f"Evaluated {current}/{total}")
+            status_area.caption(f"Last: {row['patient_id']} · {row['execution_status']}")
+        try:
+            result = run_batch(batch_patients, settings, on_progress=update_batch)
+            st.session_state["batch_result"] = result
+        except Exception as exc:
+            st.error(f"Batch could not start ({type(exc).__name__})")
+    batch_result = st.session_state.get("batch_result")
+    if batch_result:
+        st.dataframe(pd.DataFrame(batch_result.records), hide_index=True, width="stretch")
+        complete = sum(r["execution_status"] == "COMPLETED" for r in batch_result.records)
+        st.caption(f"Completed: {complete}/{len(batch_result.records)} · "
+                   "Token cells are blank if API usage is not reported; mock calls are not billed.")
+        st.download_button("⬇ Download Batch Evaluation CSV", batch_result.csv_bytes(),
+                           file_name="hf-pathguard-batch-results.csv", mime="text/csv",
+                           key="download_batch")

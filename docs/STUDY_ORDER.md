@@ -92,3 +92,12 @@
 ## 종료 조건
 
 `uv run pytest -q` 통과 → `uv run streamlit run app.py` 실행 → Mock 환자 분석 완료 → 진행 상태바 완료 → 최종 보고서 JSON 확인 → 팀 공용 GitHub에 민감 데이터 없이 업로드. API와 교수님 함수는 현장에서 연결할 부분으로 명시합니다.
+# Token-Efficient A: updated graph
+
+Start with `agents/graph.py` and identify both `add_conditional_edges` calls:
+the `precheck → abstain/dispatch` split, then `mini_safety → chief/simple`.
+Next study `llm/factory.py` (Mini and Chief routing, Pydantic SafetyAudit),
+`agents/safety.py` (deterministic guardrails), and `services/pipeline.py`
+(streamed graph events). All remote LLM connections require explicit consent
+via `ALLOW_REMOTE_DATA_TRANSFER=true`; the default mock costs no API tokens.
+

@@ -2,7 +2,14 @@
 
 **Safety-aware Multi-Agent Clinical Decision Support Prototype for Acute Heart Failure**
 
-This is a **synthetic-data hackathon MVP**: CSV/manual patient input → LangGraph specialist assessments → RAG and similarity adapters → deterministic safety review → Streamlit dashboard. It is **not a validated medical device** and does not deliver treatment or SMS.
+This is a **synthetic-data hackathon MVP**: input precheck → conditional parallel Mini specialists, RAG and similarity → deterministic safety rules → Mini Safety Chain → conditional Chief Large summary → Streamlit dashboard. It is **not a validated medical device** and does not deliver treatment or SMS.
+
+The **Token-Efficient (A)** graph contains two real LangGraph conditional edges:
+
+- If at least three of seven essential inputs are absent, it returns `INSUFFICIENT_DATA` without calling any LLM, RAG or similarity tool.
+- Otherwise three Mini specialists run in parallel with RAG and similarity. Deterministic rules review the result. A Mini Safety Chain may **add** review warnings, but never remove rule warnings.
+- If the combined status is `OK`, skip Chief Large. For `REVIEW`, Chief Large produces a short cautious summary. A Chief failure keeps a conservative fallback; the safety status never depends on Chief text.
+- Both model tiers default to local `mock`. The optional single-LLM baseline is a separate explicitly selected comparison, not part of token-efficient routing.
 
 ## Run locally
 
@@ -14,13 +21,27 @@ uv run streamlit run app.py
 
 The default `mock` mode needs no API keys and no network. `data/sample_patients.csv` contains fictional data only.
 
+### 30-patient batch evaluation
+
+Open **Batch Evaluation · Up to 30 Patients** below the main dashboard.
+Choose the built-in 30 fictional test cases or upload 1–30 patients from CSV/JSON.
+Click **Run Sequential Batch Evaluation**, then download the results CSV.
+
+- This reuses the same `Pipeline.run`, one patient at a time, with no concurrent patient jobs.
+- A failed patient does not cancel the remaining cases; only an error type is exported.
+- Per-patient route/status, latency, Mini/Chief call counts and usage-metadata tokens are exported. `chief_route` means the Chief graph node ran, while `chief_used` means a real model response was received.
+- No usage-metadata estimates are fabricated. Empty token cells mean the API did not provide complete usage or an inference failed.
+- Mock mode does **not** establish clinical performance. For routing sensitivity/FNR, independent reference labels must be supplied to `evaluation/metrics.py`.
+- Batch limit is 30 per run by design; CSV parsing separately supports up to 500 rows.
+
 ## Connect at the hackathon
 
 Copy `.env.example` to `.env` locally. The organizer has announced `internal-api.khdp.net`, but the **exact path, model ID, request format, and authentication must be confirmed** on site using their khdp-api guidance.
 
 | Module | Switch | Integration point |
 |---|---|---|
-| LLM | `LLM_PROVIDER=mock` or `openai_compatible` | `llm/factory.py` |
+| Chief Large | `LLM_PROVIDER=mock` or `openai_compatible`, `LLM_MODEL` | `llm/factory.py` |
+| Mini specialists + Safety | `MINI_LLM_PROVIDER=mock` or `openai_compatible`, `MINI_LLM_MODEL` | `llm/factory.py` |
 | RAG | `RAG_PROVIDER=mock` or `api` | `rag/adapter.py`, SSE `/api/ask` last `done` event |
 | Similarity | `SIMILARITY_PROVIDER=mock` or `professor` | `similarity/adapter.py`, professor's Python function |
 

@@ -11,3 +11,7 @@ class AgentState(TypedDict, total=False):
     similarity_error: str
     safety: dict[str, Any]
     final: dict[str, Any]
+    precheck_missing: list[str]
+    skip_analysis: bool
+    chief_summary: str
+    chief_used: bool

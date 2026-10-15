@@ -11,8 +11,9 @@ from similarity.adapter import SimilarityAdapter
 class Pipeline:
     def __init__(self, settings: Settings | None = None):
         self.settings = settings or Settings.from_env()
-        self.llm = LLMClient(self.settings)
-        self.graph = build_graph(self.llm, EvidenceAdapter(self.settings), SimilarityAdapter(self.settings))
+        self.llm = LLMClient(self.settings, tier="chief")
+        self.mini_llm = LLMClient(self.settings, tier="mini")
+        self.graph = build_graph(self.mini_llm, self.llm, EvidenceAdapter(self.settings), SimilarityAdapter(self.settings))
 
     def run(self, patient: PatientInput, on_progress: Callable[[str, str], None] | None = None) -> FinalReport:
         started = perf_counter()
@@ -25,7 +26,7 @@ class Pipeline:
             for node, values in update.items():
                 if on_progress:
                     on_progress(node, "completed")
-                if node == "final":
+                if node in {"final", "abstain"}:
                     final_data = values.get("final")
         if final_data is None:
             raise RuntimeError("The graph did not produce a final report")
