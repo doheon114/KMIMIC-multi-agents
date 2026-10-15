@@ -1,8 +1,3 @@
-"""Model adapter shared across specialists and baseline.
-
-Uses plain JSON prompts for API compatibility; the validated schema is enforced
-locally even when a provider lacks function calling or structured-output mode.
-"""
 import json
 import re
 import threading
@@ -29,6 +24,15 @@ def _json_object(text: str) -> dict[str, Any]:
     return parsed
 
 
+def normalize_specialist(kind: str, data: dict[str, Any]) -> SpecialistResult:
+    data["agent"] = kind  # 라벨은 코드가 정함 (모델이 "Cardiology"라고 써도 통과)
+    for key in ("concern_level", "confidence"):
+        value = str(data.get(key, "unknown")).strip().lower()
+        value = {"medium": "moderate"}.get(value, value)
+        data[key] = value if value in {"low", "moderate", "high"} else "unknown"
+    return SpecialistResult.model_validate(data)
+
+
 class LLMClient:
     def __init__(self, settings: Settings, tier: str = "chief"):
         self.settings = settings
@@ -51,6 +55,8 @@ class LLMClient:
             settings.require_remote_authorization()
             if not base_url or not self.model_name:
                 raise ValueError(f"{tier} LLM base URL and model are required")
+            
+            # we shoud check the ChatOpenAI class compatibility
             from langchain_openai import ChatOpenAI
             self._model = ChatOpenAI(
                 model=self.model_name,
@@ -60,7 +66,7 @@ class LLMClient:
                 timeout=settings.llm_timeout_seconds,
                 max_retries=0,
             )
-            # Same LCEL structure as the LangChain lessons:
+
             # ChatPromptTemplate | LLM | StrOutputParser.
             from langchain_core.prompts import ChatPromptTemplate
             prompt = ChatPromptTemplate.from_messages([
@@ -105,6 +111,16 @@ class LLMClient:
         self._record_usage(result)
         return str(result.content)
 
+    def chat(self, messages: list, tools: list | None = None):
+        """One model turn; with tools, uses bind_tools so the model can request tool calls."""
+        if self._model is None:
+            raise RuntimeError("chat() needs a real model; mock uses a scripted model")
+        model = self._model.bind_tools(tools) if tools else self._model
+        with self._limiter:
+            result = model.invoke(messages)
+        self._record_usage(result)
+        return result
+
     def specialist(self, kind: str, patient: PatientInput) -> SpecialistResult:
         if self.is_mock:
             return mock_specialist(kind, patient)
@@ -123,13 +139,7 @@ class LLMClient:
                     "patient_data": user,
                 })
             self._record_usage(raw_answer)
-            data = _json_object(str(raw_answer.content))
-            data["agent"] = kind  # 라벨은 코드가 정함 (모델이 "Cardiology"라고 써도 통과)
-            for key in ("concern_level", "confidence"):
-                value = str(data.get(key, "unknown")).strip().lower()
-                value = {"medium": "moderate"}.get(value, value)
-                data[key] = value if value in {"low", "moderate", "high"} else "unknown"
-            return SpecialistResult.model_validate(data)
+            return normalize_specialist(kind, _json_object(str(raw_answer.content)))
         except Exception as exc:
             return SpecialistResult(agent=kind, assessment="LLM output unavailable", needs_review=True,
                 reason=f"Inference or schema validation failed ({type(exc).__name__}); clinician review required.")

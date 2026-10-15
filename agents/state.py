@@ -5,6 +5,7 @@ class AgentState(TypedDict, total=False):
     cardiology: dict[str, Any]
     nephrology: dict[str, Any]
     pharmacy: dict[str, Any]
+    pharmacy_tool_calls: list[str]
     evidence: dict[str, Any]
     similar_patients: list[dict[str, Any]]
     similarity_error: str

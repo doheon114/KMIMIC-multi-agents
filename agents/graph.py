@@ -1,8 +1,8 @@
-"""Token-efficient conditional LangGraph with fail-closed safety review."""
 import json
 from langgraph.graph import StateGraph, START, END
 from agents.state import AgentState
 from agents.safety import validate_safety
+from agents.pharmacy_agent import run_pharmacy_agent
 from data.schemas import PatientInput, SpecialistResult, EvidenceResult, SimilarPatient, SafetyResult, FinalReport, ModelInfo
 from llm.factory import LLMClient
 from rag.adapter import EvidenceAdapter
@@ -38,6 +38,9 @@ def build_graph(mini: LLMClient, chief: LLMClient, rag: EvidenceAdapter, similar
     def specialist_node(kind):
         def run(state):
             patient = PatientInput.model_validate(state["patient"])
+            if kind == "pharmacy":  # the one tool-calling agent; output schema is unchanged
+                result, called = run_pharmacy_agent(mini, patient)
+                return {"pharmacy": result.model_dump(mode="json"), "pharmacy_tool_calls": called}
             return {kind: mini.specialist(kind, patient).model_dump(mode="json")}
         return run
 
@@ -93,6 +96,7 @@ def build_graph(mini: LLMClient, chief: LLMClient, rag: EvidenceAdapter, similar
         except Exception:
             return {"chief_summary": fallback, "chief_used": False}
 
+# Simple node for "OK"
     def simple_node(state):
         return {"chief_summary": "No automatic review flags in this prototype. "
                                  "Clinical validation is still required; Chief LLM skipped.",
@@ -114,6 +118,7 @@ def build_graph(mini: LLMClient, chief: LLMClient, rag: EvidenceAdapter, similar
             is_demo=mini.is_mock and chief.is_mock)
         return {"final": report.model_dump(mode="json")}
 
+# Add nodes
     builder.add_node("precheck", precheck)
     builder.add_node("dispatch", lambda state: {})
     builder.add_node("abstain", abstain)
@@ -127,16 +132,25 @@ def build_graph(mini: LLMClient, chief: LLMClient, rag: EvidenceAdapter, similar
     builder.add_node("simple", simple_node)
     builder.add_node("final", final_node)
     builder.add_edge(START, "precheck")
+
     builder.add_conditional_edges("precheck", lambda state: "abstain" if state["skip_analysis"] else "dispatch",
                                   {"abstain": "abstain", "dispatch": "dispatch"})
+    
     builder.add_edge("abstain", END)
+
+# fan-out
     for branch in BRANCHES:
         builder.add_edge("dispatch", branch)
+# fan-in
     builder.add_edge(list(BRANCHES), "safety")
     builder.add_edge("safety", "mini_safety")
+
+# Important part   
     builder.add_conditional_edges("mini_safety", lambda state: "chief" if state["safety"]["overall_status"] != "OK" else "simple",
                                   {"chief": "chief", "simple": "simple"})
+    
     builder.add_edge("chief", "final")
     builder.add_edge("simple", "final")
     builder.add_edge("final", END)
+
     return builder.compile()
