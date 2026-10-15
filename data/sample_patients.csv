@@ -1,0 +1,2 @@
+patient_id,age,sex,sbp,heart_rate,creatinine,baseline_creatinine,bun,sodium,potassium,furosemide_dose_mg,urine_output_6h_ml,weight_kg,medication_history,clinical_note
+SYNTH-HF001,72,Female,102,88,1.8,,35,132,4.7,40,250,,"Not available","Synthetic ICU HF demonstration patient; real diagnosis and dose timing not supplied"

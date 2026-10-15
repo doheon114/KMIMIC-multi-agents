@@ -1,0 +1,1 @@
+"""Simple single-model comparison."""

@@ -1,52 +1,81 @@
-"""HF-PathGuard 멀티 에이전트 그래프.
+"""Five parallel read-only branches converge on deterministic safety and report synthesis."""
+from langgraph.graph import StateGraph, START, END
 
-    START → intake ─┬─ cardiology ─────┐
-                    ├─ nephrology ─────┤
-                    ├─ pharmacy ───────┼─→ chief → safety ─┬─(알림 필요)→ human_review ─(승인)→ notify → END
-                    ├─ evidence_rag ───┤                   └─(정상)────────────────────────────────→ END
-                    └─ nurse_feedback ─┘
+from agents.state import AgentState
+from agents.safety import validate_safety
+from data.schemas import (PatientInput, SpecialistResult, EvidenceResult, SimilarPatient,
+                          SafetyResult, FinalReport, ModelInfo)
+from llm.factory import LLMClient
+from rag.adapter import EvidenceAdapter
+from similarity.adapter import SimilarityAdapter
+from tools.integration_tools import make_evidence_tool, make_similarity_tool
 
-- 병렬 fan-out / fan-in: 강의 2.7
-- Supervisor(Chief): 강의 2.8, 3.7
-- human-in-the-loop (interrupt + Command + checkpointer): 강의 3.6, 3.5
-  MemorySaver 는 서버 재시작 시 사라진다. 유지하려면 langgraph-checkpoint-sqlite 의 SqliteSaver 로 교체.
-"""
-from __future__ import annotations
+def build_graph(llm: LLMClient, rag: EvidenceAdapter, similarity: SimilarityAdapter):
+    graph_builder = StateGraph(AgentState)
+    evidence_tool = make_evidence_tool(rag)
+    similarity_tool = make_similarity_tool(similarity)
 
-from langgraph.checkpoint.memory import MemorySaver
-from langgraph.graph import END, START, StateGraph
+    def specialist_node(kind: str):
+        def run(state: AgentState) -> dict:
+            patient = PatientInput.model_validate(state["patient"])
+            return {kind: llm.specialist(kind, patient).model_dump(mode="json")}
+        return run
 
-from . import specialists
-from .chief import chief
-from .evidence import evidence_rag
-from .safety import human_review, notify, route_after_safety, safety
-from .state import PGState
+    def evidence_node(state: AgentState) -> dict:
+        patient = PatientInput.model_validate(state["patient"])
+        # Only a short need-to-know question is sent; no full medical note by default.
+        query = "Find evidence relevant to acute HF early diuretic response and renal/electrolyte safety; return sources."
+        try:
+            return {"evidence": evidence_tool.invoke({"question": query})}
+        except Exception as exc:
+            evidence = EvidenceResult(refused=True, error=f"Evidence tool failed ({type(exc).__name__})")
+            return {"evidence": evidence.model_dump(mode="json")}
 
-SPECIALISTS = ["cardiology", "nephrology", "pharmacy", "evidence_rag", "nurse_feedback"]
+    def similarity_node(state: AgentState) -> dict:
+        patient = PatientInput.model_validate(state["patient"])
+        try:
+            results = similarity_tool.invoke({"patient_json": patient.model_dump(mode="json"), "top_k": 5})
+            return {"similar_patients": results}
+        except Exception as exc:
+            return {"similar_patients": [], "similarity_error": type(exc).__name__}
 
+    def safety_node(state: AgentState) -> dict:
+        patient = PatientInput.model_validate(state["patient"])
+        agents = [SpecialistResult.model_validate(state[k]) for k in ("cardiology", "nephrology", "pharmacy")]
+        evidence = EvidenceResult.model_validate(state["evidence"])
+        safety = validate_safety(patient, agents, evidence, state.get("similarity_error", ""))
+        return {"safety": safety.model_dump(mode="json")}
 
-def build_graph(checkpointer=None):
-    g = StateGraph(PGState)
-    g.add_node("intake", specialists.intake)
-    g.add_node("cardiology", specialists.cardiology)
-    g.add_node("nephrology", specialists.nephrology)
-    g.add_node("pharmacy", specialists.pharmacy)
-    g.add_node("evidence_rag", evidence_rag)
-    g.add_node("nurse_feedback", specialists.nurse_feedback)
-    g.add_node("chief", chief)
-    g.add_node("safety", safety)
-    g.add_node("human_review", human_review)
-    g.add_node("notify", notify)
+    def final_node(state: AgentState) -> dict:
+        patient = PatientInput.model_validate(state["patient"])
+        safety = SafetyResult.model_validate(state["safety"])
+        specialists = {kind:SpecialistResult.model_validate(state[kind]) for kind in ("cardiology","nephrology","pharmacy")}
+        summary = (
+            f"{patient.patient_id}: {safety.overall_status}. "
+            "Specialist observations are preliminary and require clinician review. "
+            "Unknown baseline/treatment timing must not be inferred."
+        )
+        report = FinalReport(patient_id=patient.patient_id, **specialists,
+            evidence=EvidenceResult.model_validate(state["evidence"]),
+            similar_patients=[SimilarPatient.model_validate(r) for r in state.get("similar_patients", [])],
+            overall_status=safety.overall_status, review_reasons=safety.review_reasons,
+            missing_fields=safety.missing_fields, final_summary=summary,
+            notification_draft=safety.notification_draft,
+            model_info=ModelInfo(provider=llm.settings.llm_provider, model_name=llm.settings.llm_model),
+            is_demo=llm.is_mock)
+        return {"final": report.model_dump(mode="json")}
 
-    g.add_edge(START, "intake")
-    for name in SPECIALISTS:
-        g.add_edge("intake", name)       # fan-out: 같은 super-step 에서 병렬 실행
-    g.add_edge(SPECIALISTS, "chief")     # fan-in: 전부 끝나야 chief
-    g.add_edge("chief", "safety")
-    g.add_conditional_edges("safety", route_after_safety, ["human_review", END])
-    g.add_edge("notify", END)
-    return g.compile(checkpointer=checkpointer or MemorySaver())
-
-
-if __name__ == "__main__":
-    print(build_graph().get_graph().draw_mermaid())
+    for kind in ("cardiology", "nephrology", "pharmacy"):
+        graph_builder.add_node(kind, specialist_node(kind))
+    graph_builder.add_node("evidence", evidence_node)
+    graph_builder.add_node("similarity", similarity_node)
+    graph_builder.add_node("safety", safety_node)
+    graph_builder.add_node("final", final_node)
+    branches = ("cardiology", "nephrology", "pharmacy", "evidence", "similarity")
+    for branch in branches:
+        graph_builder.add_edge(START, branch)
+    # A joined edge guarantees all specialist/tool branches finish before review.
+    graph_builder.add_edge(list(branches), "safety")
+    graph_builder.add_edge("safety", "final")
+    graph_builder.add_edge("final", END)
+    return graph_builder.compile()

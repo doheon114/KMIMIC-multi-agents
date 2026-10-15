@@ -1,121 +1,60 @@
 # HF-PathGuard 🫀🤖
 
-**Safety-Aware Multi-Agent Clinical Decision Support for Acute Heart Failure**
+**Safety-aware Multi-Agent Clinical Decision Support Prototype for Acute Heart Failure**
 
-HF-PathGuard is an Agentic AI-based clinical decision support prototype developed for the Korea Clinical Datathon 2026.
+This is a **synthetic-data hackathon MVP**: CSV/manual patient input → LangGraph specialist assessments → RAG and similarity adapters → deterministic safety review → Streamlit dashboard. It is **not a validated medical device** and does not deliver treatment or SMS.
 
-The system evaluates early diuretic response and renal/electrolyte safety in patients with acute heart failure by integrating multiple specialist agents, clinical evidence retrieval, and safety validation.
+## Run locally
 
-> **Current Status:** v0.1 Prototype | Under Development
-
----
-
-## Target Interface
-
-![HF-PathGuard Dashboard](assets/mock_dashboard_med_agent.png)
-
-The dashboard illustrates the target interface, including multi-agent clinical analysis, similar patient retrieval, evidence-based recommendations, and safety alerts.
-
-*Some features shown are planned and not yet implemented.*
-
----
-
-## Why HF-PathGuard?
-
-Large language models can generate clinically plausible explanations but may:
-
-- Misinterpret clinical measurements
-- Produce inconsistent assessments across specialties
-- Generate unsupported recommendations
-- Overlook missing information or safety concerns
-
-HF-PathGuard aims to address these limitations by combining **multi-agent clinical reasoning, evidence retrieval, and deterministic safety validation**, while keeping healthcare professionals involved in final decisions.
-
----
-
-## Architecture
-
-```text
-                  Patient Data
-                       |
-                       v
-                 Multi-Agent AI
-                       |
-         +-------------+-------------+
-         |             |             |
-         v             v             v
-     Cardiology    Nephrology     Pharmacy
-        Agent         Agent        Agent
-         |             |             |
-         +-------------+-------------+
-                       |
-                       v
-                Safety Validation
-                       |
-                       v
-                  Final Report
-                       |
-                       v
-               Clinical Review
+```bash
+uv sync
+uv run pytest -q
+uv run streamlit run app.py
 ```
 
-**Planned Extensions**
+The default `mock` mode needs no API keys and no network. `data/sample_patients.csv` contains fictional data only.
 
-- Chief Agent orchestration
-- Evidence RAG and similar patient retrieval
-- Interactive clinical dashboard
-- Configurable LLM integration
-- Single LLM vs. Multi-Agent evaluation
-- Clinician notification workflow
+## Connect at the hackathon
 
----
+Copy `.env.example` to `.env` locally. The organizer has announced `internal-api.khdp.net`, but the **exact path, model ID, request format, and authentication must be confirmed** on site using their khdp-api guidance.
 
-## Version Roadmap
-
-| Version | Key Features | Status |
+| Module | Switch | Integration point |
 |---|---|---|
-| **v0.1** | Initial Multi-Agent Prototype & Safety Validation | ✅ Completed |
-| **v0.2** | Chief Agent, Specialist Agents & Tool Integration | 🔜 Planned |
-| **v0.3** | Evidence RAG & Similar Patient Retrieval | Planned |
-| **v0.4** | Streamlit Dashboard, Patient Data Integration & LLM Switching | Planned |
-| **v0.5** | Single LLM vs. Multi-Agent Evaluation, Safety Assessment & Clinical Alerts | Planned |
-| **v1.0** | Fully Integrated HF-PathGuard Demo | Target |
+| LLM | `LLM_PROVIDER=mock` or `openai_compatible` | `llm/factory.py` |
+| RAG | `RAG_PROVIDER=mock` or `api` | `rag/adapter.py`, SSE `/api/ask` last `done` event |
+| Similarity | `SIMILARITY_PROVIDER=mock` or `professor` | `similarity/adapter.py`, professor's Python function |
 
----
+Remote patient-data transfer is disabled unless `ALLOW_REMOTE_DATA_TRANSFER=true` is explicitly set **after authorization**. Credentials and restricted data must never enter Git.
 
-## Project Structure
+See [integration instructions](docs/integration.md). For the full output contract, inspect `data/schemas.py` (`FinalReport`).
+
+For a lecture-by-lecture walkthrough and the recommended six-hour study order,
+see [STUDY_ORDER.md](docs/STUDY_ORDER.md). The dashboard remains in English.
+
+## Limitations
+
+- All mock patient records and similarity scores are fictional; scores are not calibrated clinical probabilities.
+- No fabricated literature citations: mock RAG returns no verified evidence.
+- Safety validation flags missing or conflicting information; it is not a certified clinical rule set.
+- Human clinical review is required. A notification draft is displayed but is **never sent**.
+- The organizer's Jupyter environment cannot directly host Streamlit. On-site deployment through `khdp.ai Apps` is pending confirmation of its supported app format.
+- The original `hf-agents_v01.ipynb` is preserved in your GitHub project; it was not among the uploaded lecture files and is not overwritten here.
+
+## Project structure
 
 ```text
-KMIMIC-multi-agents/
-│
-├── agents/
-├── assets/
-├── config/
-├── data/
-├── docs/
-├── evaluation/
-├── llm/
-├── rag/
-├── services/
-├── similarity/
-├── tests/
-├── tools/
-├── ui/
-│
-├── app.py
-├── hf-agents_v01.ipynb
-├── requirements.txt
-├── .env.example
-├── .gitignore
-└── README.md
+app.py                    Streamlit UI
+agents/                   LangGraph parallel nodes and safety synthesis
+config/                   Settings and secret handling
+data/                     Input/output schema, CSV/JSON loader, mock patient
+llm/                      Mock and compatible API model adapter
+rag/                      Mock and SSE evidence adapter
+similarity/               Mock and professor function adapter
+tools/                    Deterministic calculations
+evaluation/               Single-LLM baseline
+services/                 Pipeline runner and CLI demo
+ui/                       Visual components
+tests/                    Automated checks
 ```
 
----
-
-## Development
-
-**Current Prototype:** `hf-agents_v01.ipynb`
-
-**Tech Stack:** Python · LangGraph · LLM APIs · Streamlit
-
-HF-PathGuard is a research prototype intended to support, not replace, clinical judgment.
+The uploaded lectures informed this implementation: LangGraph StateGraph and parallel execution (2.1 and 2.7), LangChain LCEL/structured parsing (lessons 4–5), tools (LangGraph 3.2–3.3), and RAG interfaces (RAG 3.2). The remote evidence adapter does not itself implement the Chroma vector database from the RAG lesson. Human-in-the-loop interrupt, Self-RAG, and autonomous supervisor loops are not implemented; human review is represented by a safe report draft. The project deliberately avoids unbounded autonomous loops on shared infrastructure.

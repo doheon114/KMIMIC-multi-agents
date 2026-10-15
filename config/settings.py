@@ -1,21 +1,48 @@
-"""환경 설정을 한 곳에서 읽는다. 무엇을 갈아끼울지는 전부 .env 로 정한다."""
-from __future__ import annotations
-
+"""Settings: remote model/API calls require explicit authorization."""
+from dataclasses import dataclass
 import os
-from pathlib import Path
+from dotenv import load_dotenv
 
-try:
-    from dotenv import load_dotenv
+def _bool(name: str) -> bool:
+    return os.getenv(name, "false").strip().lower() in {"1", "true", "yes", "on"}
 
-    load_dotenv()
-except ImportError:
-    pass
+@dataclass(frozen=True)
+class Settings:
+    llm_provider: str = "mock"
+    llm_model: str = "demo"
+    llm_base_url: str = ""
+    llm_api_key: str = ""
+    llm_timeout_seconds: float = 25.0
+    llm_max_concurrent_calls: int = 1
+    allow_remote_data_transfer: bool = False
+    rag_provider: str = "mock"
+    rag_ask_url: str = ""
+    rag_api_key: str = ""
+    rag_timeout_seconds: float = 15.0
+    similarity_provider: str = "mock"
+    similarity_module: str = "similarity.professor_impl"
+    similarity_function: str = "find_similar_patients"
 
-ROOT = Path(__file__).resolve().parent.parent
+    @classmethod
+    def from_env(cls) -> "Settings":
+        load_dotenv(override=False)
+        return cls(
+            llm_provider=os.getenv("LLM_PROVIDER", "mock").strip().lower(),
+            llm_model=os.getenv("LLM_MODEL", "demo"),
+            llm_base_url=os.getenv("LLM_BASE_URL", ""),
+            llm_api_key=os.getenv("LLM_API_KEY", ""),
+            llm_timeout_seconds=float(os.getenv("LLM_TIMEOUT_SECONDS", "25")),
+            llm_max_concurrent_calls=max(1, int(os.getenv("LLM_MAX_CONCURRENT_CALLS", "1"))),
+            allow_remote_data_transfer=_bool("ALLOW_REMOTE_DATA_TRANSFER"),
+            rag_provider=os.getenv("RAG_PROVIDER", "mock").strip().lower(),
+            rag_ask_url=os.getenv("RAG_ASK_URL", ""),
+            rag_api_key=os.getenv("RAG_API_KEY", ""),
+            rag_timeout_seconds=float(os.getenv("RAG_TIMEOUT_SECONDS", "15")),
+            similarity_provider=os.getenv("SIMILARITY_PROVIDER", "mock").strip().lower(),
+            similarity_module=os.getenv("SIMILARITY_MODULE", "similarity.professor_impl"),
+            similarity_function=os.getenv("SIMILARITY_FUNCTION", "find_similar_patients"),
+        )
 
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "mock").lower()      # mock | openai | upstage | ollama | ...
-DATA_SOURCE = os.getenv("DATA_SOURCE", "mock").lower()        # mock | csv
-DATA_PATH = ROOT / os.getenv("DATA_PATH", "data/raw/patients.csv")
-RAG_BACKEND = os.getenv("RAG_BACKEND", "mock").lower()        # mock | team
-SIMILAR_BACKEND = os.getenv("SIMILAR_BACKEND", "mock").lower()  # mock | team
-MESSAGE_LOG = ROOT / "data" / "logs" / "message_log.jsonl"
+    def require_remote_authorization(self) -> None:
+        if not self.allow_remote_data_transfer:
+            raise PermissionError("Remote patient-data transfer is disabled; obtain authorization first.")
