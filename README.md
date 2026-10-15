@@ -83,6 +83,35 @@ HF-PathGuard aims to address these limitations by combining **multi-agent clinic
 
 ---
 
+## Project Structure
+
+```text
+KMIMIC-multi-agents/
+│
+├── agents/
+├── assets/
+├── config/
+├── data/
+├── docs/
+├── evaluation/
+├── llm/
+├── rag/
+├── services/
+├── similarity/
+├── tests/
+├── tools/
+├── ui/
+│
+├── app.py
+├── hf-agents_v01.ipynb
+├── requirements.txt
+├── .env.example
+├── .gitignore
+└── README.md
+```
+
+---
+
 ## Development
 
 **Current Prototype:** `hf-agents_v01.ipynb`
