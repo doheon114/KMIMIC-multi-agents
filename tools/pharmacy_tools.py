@@ -4,6 +4,7 @@ Each check reads values only from the validated PatientInput (bound by closure),
 so the model chooses WHICH check to run but can never supply or invent numbers.
 Thresholds are simplified demo rules, not treatment recommendations.
 """
+import json
 import re
 from langchain_core.tools import tool
 from data.schemas import PatientInput
@@ -89,18 +90,18 @@ def check_electrolytes(patient: PatientInput) -> dict:
 def make_pharmacy_tools(patient: PatientInput) -> list:
     """LangChain tools bound to one patient. The model picks which ones to call."""
     @tool("check_drug_interactions")
-    def check_drug_interactions_tool() -> dict:
+    def check_drug_interactions_tool() -> str:
         """Check the patient's medication list for risky combinations (NSAID+diuretic, triple whammy, loop+thiazide, digoxin with low K)."""
-        return check_drug_interactions(patient)
+        return json.dumps(check_drug_interactions(patient), ensure_ascii=False)
 
     @tool("check_renal_dosing")
-    def check_renal_dosing_tool() -> dict:
+    def check_renal_dosing_tool() -> str:
         """Compute eGFR (CKD-EPI 2021) and flag renally sensitive drugs or a creatinine rise."""
-        return check_renal_dosing(patient)
+        return json.dumps(check_renal_dosing(patient), ensure_ascii=False)
 
     @tool("check_electrolytes")
-    def check_electrolytes_tool() -> dict:
+    def check_electrolytes_tool() -> str:
         """Check potassium and sodium against the patient's diuretics and K-raising drugs."""
-        return check_electrolytes(patient)
+        return json.dumps(check_electrolytes(patient), ensure_ascii=False)
 
     return [check_drug_interactions_tool, check_renal_dosing_tool, check_electrolytes_tool]

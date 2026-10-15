@@ -13,8 +13,8 @@ STABLE = dict(patient_id="SYNTH-PH", age=60, sex="Male", sbp=115, heart_rate=80,
 def patient(**changes):
     return PatientInput(**{**STABLE, **changes})
 
-def call(*names):
-    return AIMessage(content="", tool_calls=[{"name": n, "args": {}, "id": f"c{i}", "type": "tool_call"}
+def call(*names, turn=0):
+    return AIMessage(content="", tool_calls=[{"name": n, "args": {}, "id": f"t{turn}-c{i}", "type": "tool_call"}
                                              for i, n in enumerate(names)])
 
 CLEAR = json.dumps({"assessment": "No issue", "concern_level": "low", "confidence": "moderate",
@@ -58,11 +58,16 @@ def test_model_may_skip_tools_and_clear_when_nothing_flags():
     assert called == [] and not result.needs_review and "Tools used: none" in result.reason
 
 def test_tool_loop_is_capped_then_forced_final():
-    fake = FakeClient([call("check_renal_dosing")] * MAX_ROUNDS + [AIMessage(content=CLEAR)])
+    fake = FakeClient([call("check_renal_dosing", turn=t) for t in range(MAX_ROUNDS)] + [AIMessage(content=CLEAR)])
     result, called = run_pharmacy_agent(fake, patient())
     assert len(called) == MAX_ROUNDS
     assert fake.bound == [True] * MAX_ROUNDS + [False]
     assert result.agent == "pharmacy"
+
+def test_pharmacy_subgraph_has_lesson_shape():
+    from agents.pharmacy_agent import build_pharmacy_graph
+    graph = build_pharmacy_graph(LLMClient(Settings(), tier="mini"), patient())
+    assert {"agent", "tools"} <= set(graph.get_graph().nodes)
 
 def test_unparseable_answer_falls_back_to_plain_specialist():
     fake = FakeClient([call("check_drug_interactions"), AIMessage(content="not json")])

@@ -1,12 +1,18 @@
 """Pharmacy specialist as a small tool-calling agent (the one 'agent' inside the fixed workflow).
 
-The graph route stays fixed. Inside this node the model decides which rule-based
-tools to call (max MAX_ROUNDS rounds), then returns the usual SpecialistResult JSON.
-Safety: tool flags are deterministic and can only ADD review; any model/parse
-failure falls back to the plain (non-tool) specialist call.
+Same shape as the LangGraph lesson 3.3 / 3.8:
+    START -> agent -> tools_condition -> tools -> agent ... -> END
+built with bind_tools + ToolNode + tools_condition, as a subgraph called from the
+pharmacy node. The outer graph route stays fixed.
+
+Safety: tool flags are deterministic and can only ADD review; after MAX_ROUNDS
+tool rounds the agent must answer without tools; any model/parse failure falls
+back to the plain (non-tool) specialist call.
 """
 import json
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langgraph.graph import START, MessagesState, StateGraph
+from langgraph.prebuilt import ToolNode, tools_condition
 from data.schemas import PatientInput, SpecialistResult
 from llm.factory import LLMClient, _json_object, mock_specialist, normalize_specialist
 from tools.clinical_tools import clinical_features
@@ -44,34 +50,56 @@ class ScriptedPharmacyModel:
         return AIMessage(content=mock_specialist("pharmacy", self.patient).model_dump_json())
 
 
+def build_pharmacy_graph(mini: LLMClient, patient: PatientInput):
+    tool_list = make_pharmacy_tools(patient)
+    tool_node = ToolNode(tool_list)
+    if mini.is_mock:
+        scripted = ScriptedPharmacyModel(patient)
+        llm_with_tools, llm_without_tools = (lambda m: scripted.invoke(m, True)), (lambda m: scripted.invoke(m, False))
+    else:
+        # Lesson 3.2: llm_with_tools = small_llm.bind_tools(tool_list)
+        llm_with_tools, llm_without_tools = (lambda m: mini.chat(m, tool_list)), (lambda m: mini.chat(m))
+
+    def agent(state: MessagesState) -> MessagesState:
+        messages = state["messages"]
+        rounds = sum(1 for m in messages if isinstance(m, AIMessage) and m.tool_calls)
+        if rounds >= MAX_ROUNDS:  # tool budget used up: answer without tools
+            return {"messages": [llm_without_tools([*messages, HumanMessage(content=FINALIZE)])]}
+        return {"messages": [llm_with_tools(messages)]}
+
+    graph_builder = StateGraph(MessagesState)
+    graph_builder.add_node("agent", agent)
+    graph_builder.add_node("tools", tool_node)
+    graph_builder.add_edge(START, "agent")
+    graph_builder.add_conditional_edges("agent", tools_condition)  # tool_calls -> "tools", else END
+    graph_builder.add_edge("tools", "agent")
+    return graph_builder.compile()
+
+
 def run_pharmacy_agent(mini: LLMClient, patient: PatientInput) -> tuple[SpecialistResult, list[str]]:
-    tools = make_pharmacy_tools(patient)
-    by_name = {t.name: t for t in tools}
-    model = ScriptedPharmacyModel(patient) if mini.is_mock else None
-    invoke = model.invoke if model else (lambda msgs, tools_on=True: mini.chat(msgs, tools if tools_on else None))
-    messages = [SystemMessage(content=SYSTEM), HumanMessage(content=json.dumps(
+    start = [SystemMessage(content=SYSTEM), HumanMessage(content=json.dumps(
         {"patient": patient.model_dump(mode="json"), "observations": clinical_features(patient)}, ensure_ascii=False))]
-    called, findings = [], []
+    messages = start
     try:
-        for _ in range(MAX_ROUNDS):
-            answer = invoke(messages, True)
-            messages.append(answer)
-            if not answer.tool_calls:
-                break
-            for call in answer.tool_calls:
-                tool = by_name.get(call["name"])
-                output = tool.invoke({}) if tool else {"error": f"unknown tool {call['name']}"}
-                called.append(call["name"])
-                findings.extend(output.get("flags", []))
-                messages.append(ToolMessage(content=json.dumps(output, ensure_ascii=False), tool_call_id=call["id"]))
-        else:
-            # Still asking for tools after MAX_ROUNDS: force a final answer without tools.
-            messages.append(HumanMessage(content=FINALIZE))
-            answer = invoke(messages, False)
-        result = normalize_specialist("pharmacy", _json_object(str(answer.content)))
+        messages = build_pharmacy_graph(mini, patient).invoke({"messages": start})["messages"]
+        result = normalize_specialist("pharmacy", _json_object(str(messages[-1].content)))
     except Exception:
         result = mini.specialist("pharmacy", patient)  # previous non-tool behaviour
+    called, findings = tool_trace(messages)
     return merge_tool_findings(result, called, findings), called
+
+
+def tool_trace(messages) -> tuple[list[str], list[str]]:
+    """Which tools ran and which flags they raised, read from the ToolMessages."""
+    called, findings = [], []
+    for m in messages:
+        if isinstance(m, ToolMessage):
+            called.append(m.name)
+            try:
+                findings.extend(json.loads(m.content).get("flags", []))
+            except (TypeError, ValueError, AttributeError):
+                pass
+    return called, findings
 
 
 def merge_tool_findings(result: SpecialistResult, called: list[str], findings: list[str]) -> SpecialistResult:
