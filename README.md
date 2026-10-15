@@ -1,12 +1,12 @@
-# KMMIC-Multi-Agents for HF 🫀🤖
+# HF-PathGuard 🫀🤖
 
-**Safety-aware Multi-Agent Clinical Decision Support Prototype for Diuretic Response Assessment**
+**Safety-Aware Multi-Agent Clinical Decision Support for Acute Heart Failure**
 
-HF-PathGuard is a clinical AI agent prototype designed for the Korea Clinical Datathon 2026.
+HF-PathGuard is an Agentic AI-based clinical decision support prototype developed for the Korea Clinical Datathon 2026.
 
-The system evaluates early diuretic response and renal/electrolyte safety in ICU patients using multiple specialist agents and an explicit safety-validation layer.
+The system evaluates early diuretic response and renal/electrolyte safety in patients with acute heart failure by integrating multiple specialist agents, clinical evidence retrieval, and safety validation.
 
-> Current status: **v0.1 prototype**
+> **Current Status:** v0.1 Prototype | Under Development
 
 ---
 
@@ -14,45 +14,79 @@ The system evaluates early diuretic response and renal/electrolyte safety in ICU
 
 ![HF-PathGuard Dashboard](assets/mock_dashboard_med_agent.png)
 
-> The dashboard above represents the target system design.  
-> Some modules including Evidence RAG, patient similarity retrieval, Chief Agent orchestration, and clinician notification are planned for later versions.
+The dashboard illustrates the target interface, including multi-agent clinical analysis, similar patient retrieval, evidence-based recommendations, and safety alerts.
+
+*Some features shown are planned and not yet implemented.*
 
 ---
 
 ## Why HF-PathGuard?
 
-Large language models can generate clinically plausible explanations, but they may also:
+Large language models can generate clinically plausible explanations but may:
 
-- misinterpret laboratory values,
-- disagree across specialist agents,
-- produce low-confidence assessments,
-- or generate unsupported recommendations.
+- Misinterpret clinical measurements
+- Produce inconsistent assessments across specialties
+- Generate unsupported recommendations
+- Overlook missing information or safety concerns
 
-HF-PathGuard therefore separates:
-
-**LLM-based clinical reasoning**
-
-from
-
-**deterministic safety validation**
-
-before producing a final clinical review status.
+HF-PathGuard aims to address these limitations by combining **multi-agent clinical reasoning, evidence retrieval, and deterministic safety validation**, while keeping healthcare professionals involved in final decisions.
 
 ---
 
-## Current Architecture — v0.1
+## Architecture
 
 ```text
-PatientState
-     │
-     ├─────────────┬─────────────┐
-     ↓             ↓             ↓
- Cardiology    Nephrology     Pharmacy
-    Agent          Agent          Agent
-     └─────────────┼─────────────┘
-                   ↓
-            Safety Validator
-                   ↓
-              FinalReport
-                   ↓
-              OK / REVIEW
+                  Patient Data
+                       |
+                       v
+                 Multi-Agent AI
+                       |
+         +-------------+-------------+
+         |             |             |
+         v             v             v
+     Cardiology    Nephrology     Pharmacy
+        Agent         Agent        Agent
+         |             |             |
+         +-------------+-------------+
+                       |
+                       v
+                Safety Validation
+                       |
+                       v
+                  Final Report
+                       |
+                       v
+               Clinical Review
+```
+
+**Planned Extensions**
+
+- Chief Agent orchestration
+- Evidence RAG and similar patient retrieval
+- Interactive clinical dashboard
+- Configurable LLM integration
+- Single LLM vs. Multi-Agent evaluation
+- Clinician notification workflow
+
+---
+
+## Version Roadmap
+
+| Version | Key Features | Status |
+|---|---|---|
+| **v0.1** | Initial Multi-Agent Prototype & Safety Validation | ✅ Completed |
+| **v0.2** | Chief Agent, Specialist Agents & Tool Integration | 🔜 Planned |
+| **v0.3** | Evidence RAG & Similar Patient Retrieval | Planned |
+| **v0.4** | Streamlit Dashboard, Patient Data Integration & LLM Switching | Planned |
+| **v0.5** | Single LLM vs. Multi-Agent Evaluation, Safety Assessment & Clinical Alerts | Planned |
+| **v1.0** | Fully Integrated HF-PathGuard Demo | Target |
+
+---
+
+## Development
+
+**Current Prototype:** `hf-agents_v01.ipynb`
+
+**Tech Stack:** Python · LangGraph · LLM APIs · Streamlit
+
+HF-PathGuard is a research prototype intended to support, not replace, clinical judgment.
