@@ -64,18 +64,51 @@ see [STUDY_ORDER.md](docs/STUDY_ORDER.md). The dashboard remains in English.
 ## Project structure
 
 ```text
-app.py                    Streamlit UI
-agents/                   LangGraph parallel nodes and safety synthesis
-config/                   Settings and secret handling
-data/                     Input/output schema, CSV/JSON loader, mock patient
-llm/                      Mock and compatible API model adapter
-rag/                      Mock and SSE evidence adapter
-similarity/               Mock and professor function adapter
-tools/                    Deterministic calculations
-evaluation/               Single-LLM baseline
-services/                 Pipeline runner and CLI demo
-ui/                       Visual components
-tests/                    Automated checks
+hf-pathguard/
+├── app.py
+├── agents/
+│   ├── graph.py
+│   ├── state.py
+│   └── safety.py
+├── config/
+│   └── settings.py
+├── data/
+│   ├── schemas.py
+│   ├── loader.py
+│   └── sample_patients.csv
+├── llm/
+│   └── factory.py
+├── rag/
+│   └── adapter.py
+├── similarity/
+│   ├── adapter.py
+│   └── mock_retriever.py
+├── tools/
+│   ├── clinical_tools.py
+│   └── integration_tools.py
+├── evaluation/
+│   ├── baseline.py
+│   ├── batch_runner.py
+│   ├── demo_cases.py
+│   └── metrics.py
+├── services/
+│   └── pipeline.py
+├── ui/
+│   ├── styles.py
+│   └── assets/
+│       └── dashboard_reference.png
+├── tests/
+│   ├── test_pipeline.py
+│   ├── test_batch.py
+│   ├── test_data.py
+│   ├── test_rag.py
+│   └── test_similarity.py
+├── docs/
+│   ├── STUDY_ORDER.md
+│   └── integration.md
+├── pyproject.toml
+├── uv.lock
+└── .env.example
 ```
 
 The uploaded lectures informed this implementation: LangGraph StateGraph and parallel execution (2.1 and 2.7), LangChain LCEL/structured parsing (lessons 4–5), tools (LangGraph 3.2–3.3), and RAG interfaces (RAG 3.2). The remote evidence adapter does not itself implement the Chroma vector database from the RAG lesson. Human-in-the-loop interrupt, Self-RAG, and autonomous supervisor loops are not implemented; human review is represented by a safe report draft. The project deliberately avoids unbounded autonomous loops on shared infrastructure.
