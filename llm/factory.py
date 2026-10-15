@@ -123,10 +123,13 @@ class LLMClient:
                     "patient_data": user,
                 })
             self._record_usage(raw_answer)
-            result = SpecialistResult.model_validate(_json_object(str(raw_answer.content)))
-            if result.agent != kind:
-                raise ValueError("Agent label mismatch")
-            return result
+            data = _json_object(str(raw_answer.content))
+            data["agent"] = kind  # 라벨은 코드가 정함 (모델이 "Cardiology"라고 써도 통과)
+            for key in ("concern_level", "confidence"):
+                value = str(data.get(key, "unknown")).strip().lower()
+                value = {"medium": "moderate"}.get(value, value)
+                data[key] = value if value in {"low", "moderate", "high"} else "unknown"
+            return SpecialistResult.model_validate(data)
         except Exception as exc:
             return SpecialistResult(agent=kind, assessment="LLM output unavailable", needs_review=True,
                 reason=f"Inference or schema validation failed ({type(exc).__name__}); clinician review required.")
@@ -159,5 +162,10 @@ def mock_specialist(kind: str, patient: PatientInput) -> SpecialistResult:
         reason = f"Recorded furosemide: {patient.furosemide_dose_mg} mg; full medication history: {'available' if patient.medication_history else 'missing'}."
     else:
         raise ValueError(f"Unknown specialist: {kind}")
-    return SpecialistResult(agent=kind, assessment="Data review required (synthetic example)",
-        concern_level="unknown", confidence="unknown", needs_review=True, reason=reason)
+    per_hour = urine_output_per_hour(patient)
+    flags = {"cardiology": per_hour is not None and per_hour < 100,
+             "nephrology": patient.baseline_creatinine is None or (patient.creatinine or 0) - patient.baseline_creatinine >= 0.3,
+             "pharmacy": not patient.medication_history}
+    return SpecialistResult(agent=kind, assessment="Concern noted" if flags[kind] else "No flag in synthetic review",
+        concern_level="moderate" if flags[kind] else "low", confidence="low",
+        needs_review=flags[kind], reason=reason)

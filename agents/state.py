@@ -1,4 +1,3 @@
-"""Each parallel graph branch writes its own state key."""
 from typing import Any, TypedDict
 
 class AgentState(TypedDict, total=False):

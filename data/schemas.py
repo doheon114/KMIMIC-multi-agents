@@ -1,4 +1,3 @@
-"""Stable input and output contracts for agents, RAG, similarity and web."""
 from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -19,6 +18,7 @@ class PatientInput(BaseModel):
     weight_kg: float | None = Field(default=None, gt=0, le=400)
     medication_history: str | None = None
     clinical_note: str | None = None
+# if something adds an alias for a field: alias="systolic_bp"
 
 class SpecialistResult(BaseModel):
     agent: Literal["cardiology", "nephrology", "pharmacy"]
@@ -41,6 +41,7 @@ class SimilarPatient(BaseModel):
     similarity_score: float | None = None
     key_features: list[str] = Field(default_factory=list)
     observed_outcome: str | None = None
+# Set a similarity score limit
 
 class SafetyResult(BaseModel):
     overall_status: Literal["OK", "REVIEW", "INSUFFICIENT_DATA"]
@@ -51,7 +52,8 @@ class SafetyResult(BaseModel):
 class ModelInfo(BaseModel):
     provider: str
     model_name: str
-
+    
+# Nested models for the final report
 class FinalReport(BaseModel):
     patient_id: str
     cardiology: SpecialistResult
