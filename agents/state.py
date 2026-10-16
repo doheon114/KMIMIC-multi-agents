@@ -15,3 +15,5 @@ class AgentState(TypedDict, total=False):
     skip_analysis: bool
     chief_summary: str
     chief_used: bool
+
+# total=False 의미: 모든 필드가 첫 시작부터 다 있을 필요는 없다.

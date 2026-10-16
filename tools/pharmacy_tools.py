@@ -1,14 +1,9 @@
-"""Rule-based pharmacy tools the Pharmacy agent may choose to call.
-
-Each check reads values only from the validated PatientInput (bound by closure),
-so the model chooses WHICH check to run but can never supply or invent numbers.
-Thresholds are simplified demo rules, not treatment recommendations.
-"""
 import json
 import re
 from langchain_core.tools import tool
 from data.schemas import PatientInput
 
+# DISCUSS!
 DRUG_CLASSES = {
     "nsaid": r"nsaid|ibuprofen|naproxen|diclofenac|celecoxib|ketorolac|indomethacin",
     "loop_diuretic": r"furosemide|lasix|torsemide|bumetanide",
@@ -20,15 +15,15 @@ DRUG_CLASSES = {
     "metformin": r"metformin",
 }
 
-
 def _classes(patient: PatientInput) -> set[str]:
     text = (patient.medication_history or "").lower()
     found = {name for name, pattern in DRUG_CLASSES.items() if re.search(pattern, text)}
     if patient.furosemide_dose_mg:
         found.add("loop_diuretic")
     return found
+# re.search(): 정규표현식(Regular Expression)을 이용해 문자열에서 특정 패턴을 찾는 함수
 
-
+# eGFR 계산
 def egfr_ckd_epi_2021(patient: PatientInput) -> float | None:
     """CKD-EPI 2021 (race-free). Needs creatinine, age and a binary sex."""
     if patient.creatinine is None or not patient.creatinine or patient.age is None \
@@ -73,7 +68,7 @@ def check_renal_dosing(patient: PatientInput) -> dict:
             "baseline_creatinine": patient.baseline_creatinine, "flags": flags,
             **({} if egfr is not None else {"status": "eGFR not computable (needs creatinine, age, sex)"})}
 
-
+# 칼륨·나트륨 수치와 약물 계열을 함께 확인하는 함수
 def check_electrolytes(patient: PatientInput) -> dict:
     k, na = patient.potassium, patient.sodium
     c = _classes(patient)
@@ -86,9 +81,9 @@ def check_electrolytes(patient: PatientInput) -> dict:
         flags.append(f"Na={na} on diuretic(s): hyponatremia")
     return {"tool": "electrolytes", "potassium": k, "sodium": na, "flags": flags}
 
-
+# 일반 python 함수를 Langchain tool로 
 def make_pharmacy_tools(patient: PatientInput) -> list:
-    """LangChain tools bound to one patient. The model picks which ones to call."""
+  
     @tool("check_drug_interactions")
     def check_drug_interactions_tool() -> str:
         """Check the patient's medication list for risky combinations (NSAID+diuretic, triple whammy, loop+thiazide, digoxin with low K)."""

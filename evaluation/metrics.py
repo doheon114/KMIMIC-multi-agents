@@ -1,4 +1,3 @@
-"""Workflow metrics require external labels; do not invent clinical ground truth."""
 from collections.abc import Mapping, Sequence
 
 def routing_metrics(rows: Sequence[Mapping], expected: Mapping[str, str]) -> dict:
@@ -9,6 +8,8 @@ def routing_metrics(rows: Sequence[Mapping], expected: Mapping[str, str]) -> dic
               and expected[r["patient_id"]] in allowed and r.get("overall_status") in allowed]
     review = [(truth, pred) for truth, pred in paired if truth == "REVIEW" and pred in {"REVIEW", "OK"}]
     missing = [(truth, pred) for truth, pred in paired if truth == "INSUFFICIENT_DATA"]
+
+    # routing accuracy calculation
     def ratio(a, b):
         return a / b if b else None
     return {

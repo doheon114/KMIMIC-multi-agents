@@ -1,14 +1,3 @@
-"""Pharmacy specialist as a small tool-calling agent (the one 'agent' inside the fixed workflow).
-
-Same shape as the LangGraph lesson 3.3 / 3.8:
-    START -> agent -> tools_condition -> tools -> agent ... -> END
-built with bind_tools + ToolNode + tools_condition, as a subgraph called from the
-pharmacy node. The outer graph route stays fixed.
-
-Safety: tool flags are deterministic and can only ADD review; after MAX_ROUNDS
-tool rounds the agent must answer without tools; any model/parse failure falls
-back to the plain (non-tool) specialist call.
-"""
 import json
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langgraph.graph import START, MessagesState, StateGraph
@@ -19,6 +8,7 @@ from tools.clinical_tools import clinical_features
 from tools.pharmacy_tools import make_pharmacy_tools
 
 MAX_ROUNDS = 3
+# System Prompt
 SYSTEM = (
     "You are the pharmacy reviewer in an unvalidated clinical research demonstration. "
     "You have tools: check_drug_interactions, check_renal_dosing, check_electrolytes. "
@@ -35,6 +25,7 @@ class ScriptedPharmacyModel:
     def __init__(self, patient: PatientInput):
         self.patient = patient
 
+    # choose the tools to call
     def invoke(self, messages, tools=True) -> AIMessage:
         if tools and not any(isinstance(m, ToolMessage) for m in messages):
             p, calls = self.patient, []
@@ -50,16 +41,16 @@ class ScriptedPharmacyModel:
         return AIMessage(content=mock_specialist("pharmacy", self.patient).model_dump_json())
 
 
-def build_pharmacy_graph(mini: LLMClient, patient: PatientInput):
+def build_pharmacy_graph(mini: LLMClient, patient: PatientInput): # mini: small LLM
     tool_list = make_pharmacy_tools(patient)
     tool_node = ToolNode(tool_list)
     if mini.is_mock:
-        scripted = ScriptedPharmacyModel(patient)
+        scripted = ScriptedPharmacyModel(patient) # remember the patients
         llm_with_tools, llm_without_tools = (lambda m: scripted.invoke(m, True)), (lambda m: scripted.invoke(m, False))
     else:
-        # Lesson 3.2: llm_with_tools = small_llm.bind_tools(tool_list)
         llm_with_tools, llm_without_tools = (lambda m: mini.chat(m, tool_list)), (lambda m: mini.chat(m))
 
+# new version : 도구 호출 및 환자 정보 load 기억
     def agent(state: MessagesState) -> MessagesState:
         messages = state["messages"]
         rounds = sum(1 for m in messages if isinstance(m, AIMessage) and m.tool_calls)
@@ -89,6 +80,7 @@ def run_pharmacy_agent(mini: LLMClient, patient: PatientInput) -> tuple[Speciali
     return merge_tool_findings(result, called, findings), called
 
 
+# Trace which tool were called ! important for medical review
 def tool_trace(messages) -> tuple[list[str], list[str]]:
     """Which tools ran and which flags they raised, read from the ToolMessages."""
     called, findings = [], []
@@ -101,7 +93,7 @@ def tool_trace(messages) -> tuple[list[str], list[str]]:
                 pass
     return called, findings
 
-
+# 도구가 경고 발견하면 > review true로 바꾸는 안전장치
 def merge_tool_findings(result: SpecialistResult, called: list[str], findings: list[str]) -> SpecialistResult:
     """Tool flags can only escalate: the model cannot clear a deterministic finding."""
     unique = list(dict.fromkeys(findings))

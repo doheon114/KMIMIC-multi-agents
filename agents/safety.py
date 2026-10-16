@@ -1,6 +1,7 @@
-"""Deterministic and fail-closed validation (non-clinical demo safeguards)."""
 from data.schemas import EvidenceResult, PatientInput, SafetyResult, SpecialistResult
 from tools.clinical_tools import missing_key_fields, urine_output_per_hour
+
+# NO LLM, Deterministic Safety Check
 
 def validate_safety(patient: PatientInput, specialists: list[SpecialistResult],
                     evidence: EvidenceResult, similarity_error: str = "") -> SafetyResult:
@@ -8,7 +9,8 @@ def validate_safety(patient: PatientInput, specialists: list[SpecialistResult],
     reasons = [f"Missing or unknown clinical information: {', '.join(missing)}"] if missing else []
     if not patient.clinical_note:
         reasons.append("Clinical context is missing")
-    # This flags uncertainty, not an asserted medical threshold.
+
+
     for result in specialists:
         if result.needs_review:
             reasons.append(f"{result.agent}: {result.assessment}")
@@ -16,6 +18,8 @@ def validate_safety(patient: PatientInput, specialists: list[SpecialistResult],
         reasons.append("Evidence retrieval refused or failed")
     if similarity_error:
         reasons.append("Similar-patient retrieval unavailable")
+
+        
     RULES = [
         ("potassium", lambda v: v >= 5.5 or v < 3.0, "Potassium out of safe range"),
         ("sodium",    lambda v: v < 130,             "Hyponatremia"),
@@ -25,13 +29,19 @@ def validate_safety(patient: PatientInput, specialists: list[SpecialistResult],
         v = getattr(patient, field)
         if v is not None and bad(v):
             reasons.append(f"RULE: {label} ({field}={v})")
+
+    # 6시간 소변량을 시간당 평균으로 변환해 검사
     per_hour = urine_output_per_hour(patient)
     if per_hour is not None and per_hour < 100:
         reasons.append(f"RULE: Poor diuretic response ({per_hour} mL/h < 100)")
+
+    # Creatinine보다 현재 Creatinine이 0.3 이상 증가했는지 확인
     if patient.baseline_creatinine and patient.creatinine is not None \
             and patient.creatinine - patient.baseline_creatinine >= 0.3:
         reasons.append("RULE: Creatinine rise >= 0.3 mg/dL (KDIGO AKI)")
     essential = {"sbp", "heart_rate", "creatinine", "sodium", "potassium", "furosemide_dose_mg", "urine_output_6h_ml"}
+    
+    # Final Decision
     if len(essential.intersection(missing)) >= 3:
         status = "INSUFFICIENT_DATA"
     elif reasons:

@@ -1,7 +1,8 @@
-"""30 fictional records to exercise workflow routing—not clinical ground truth."""
 from data.loader import load_sample
 from data.schemas import PatientInput
 
+
+## Warnings: generate demo patients 
 def make_demo_cases() -> list[PatientInput]:
     base = load_sample().model_dump()
     patients = []

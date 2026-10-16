@@ -1,4 +1,5 @@
-"""Baseline: one model sees the same input; no specialist graph or retrieval."""
+# basic LLM versus our model
+
 import json
 from time import perf_counter
 from data.schemas import PatientInput

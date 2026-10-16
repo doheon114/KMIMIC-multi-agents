@@ -1,8 +1,6 @@
-"""Translate /api/ask's final SSE `done` payload to EvidenceResult."""
 import json
 from typing import Any, Iterable
 import httpx
-
 from config.settings import Settings
 from data.schemas import EvidenceResult
 

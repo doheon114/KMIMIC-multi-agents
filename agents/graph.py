@@ -20,7 +20,7 @@ def build_graph(mini: LLMClient, chief: LLMClient, rag: EvidenceAdapter, similar
 
     def precheck(state):
         missing = missing_key_fields(PatientInput.model_validate(state["patient"]))
-        return {"precheck_missing": missing, "skip_analysis": len(ESSENTIAL.intersection(missing)) >= 3}
+        return {"precheck_missing": missing, "skip_analysis": len(ESSENTIAL.intersection(missing)) >= 3} # missing at least three!
 
     def abstain(state):
         patient = PatientInput.model_validate(state["patient"])
@@ -96,7 +96,7 @@ def build_graph(mini: LLMClient, chief: LLMClient, rag: EvidenceAdapter, similar
         except Exception:
             return {"chief_summary": fallback, "chief_used": False}
 
-# Simple node for "OK"
+# Simple node for "OK" >> we should revise the comment.
     def simple_node(state):
         return {"chief_summary": "No automatic review flags in this prototype. "
                                  "Clinical validation is still required; Chief LLM skipped.",

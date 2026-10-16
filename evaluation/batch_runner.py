@@ -1,9 +1,7 @@
-"""Bounded sequential evaluation. A per-patient pipeline isolates usage counters."""
 import csv
 import io
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-
 from config.settings import Settings
 from data.schemas import PatientInput
 from services.pipeline import Pipeline
@@ -34,6 +32,7 @@ def run_batch(patients: Iterable[PatientInput], settings: Settings | None = None
         raise ValueError("Duplicate patient IDs are not supported in a batch")
     settings = settings or Settings.from_env()
     records = []
+
     for index, patient in enumerate(items, start=1):
         row = {"patient_id": patient.patient_id, "execution_status": "FAILED",
                "overall_status": "", "latency_seconds": "", "mini_calls": "",
@@ -73,4 +72,4 @@ def run_batch(patients: Iterable[PatientInput], settings: Settings | None = None
         records.append(row)
         if on_progress:
             on_progress(index, len(items), row.copy())
-    return BatchResult(records=records)
+    return BatchResult(records=records) # record

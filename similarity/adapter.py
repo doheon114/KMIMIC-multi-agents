@@ -1,4 +1,3 @@
-"""Swap mock search for professor's Python module without touching agents/UI."""
 from importlib import import_module
 from typing import Any
 from config.settings import Settings

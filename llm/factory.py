@@ -2,7 +2,6 @@ import json
 import re
 import threading
 from typing import Any
-
 from config.settings import Settings
 from data.schemas import PatientInput, SpecialistResult
 from pydantic import BaseModel, Field
@@ -56,7 +55,7 @@ class LLMClient:
             if not base_url or not self.model_name:
                 raise ValueError(f"{tier} LLM base URL and model are required")
             
-            # we shoud check the ChatOpenAI class compatibility
+            # we shoud CHECK the ChatOpenAI class compatibility
             from langchain_openai import ChatOpenAI
             self._model = ChatOpenAI(
                 model=self.model_name,
@@ -96,6 +95,7 @@ class LLMClient:
                 self._usage_input += int(input_tokens)
                 self._usage_output += int(output_tokens)
 
+    # 토큰 사용량 기록
     def usage_snapshot(self) -> dict:
         with self._usage_lock:
             complete = self._requests > 0 and not self._usage_missing
@@ -111,8 +111,9 @@ class LLMClient:
         self._record_usage(result)
         return str(result.content)
 
+    # Pharmacy Toolnode
     def chat(self, messages: list, tools: list | None = None):
-        """One model turn; with tools, uses bind_tools so the model can request tool calls."""
+        
         if self._model is None:
             raise RuntimeError("chat() needs a real model; mock uses a scripted model")
         model = self._model.bind_tools(tools) if tools else self._model
@@ -145,7 +146,7 @@ class LLMClient:
                 reason=f"Inference or schema validation failed ({type(exc).__name__}); clinician review required.")
 
     def safety_audit(self, patient: PatientInput, rule_status: str, rule_reasons: list[str]) -> SafetyAudit:
-        """An advisory Mini chain; its result may escalate but never clear rule warnings."""
+       
         if self.is_mock:
             return SafetyAudit(needs_review=False, reason="Mock audit; deterministic rules remain authoritative")
         system = (
