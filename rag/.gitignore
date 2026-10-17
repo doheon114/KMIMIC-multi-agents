@@ -1,0 +1,18 @@
+# 근거 PDF·파생물(저작권), 인덱스, 환자/코호트 데이터, 환경
+*.pdf
+*.HEIC
+*.heic
+chunks.json
+chunk_embeddings.npy
+heart_failure_2022.txt
+db/
+emr/public/hf/*
+!emr/public/hf/HF017.json
+!emr/public/hf/HF023.json
+!emr/public/hf/index.json
+emr/dist/
+node_modules/
+.venv/
+__pycache__/
+*.log
+.env

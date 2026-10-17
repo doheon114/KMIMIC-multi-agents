@@ -26,7 +26,7 @@ class SimilarityAdapter:
     def find(self, patient: PatientInput, top_k: int = 5) -> list[SimilarPatient]:
         if self.settings.similarity_provider == "mock":
             return mock_search(patient, top_k)
-        if self.settings.similarity_provider != "professor":
+        if self.settings.similarity_provider != "snf":
             raise ValueError(f"Unsupported SIMILARITY_PROVIDER: {self.settings.similarity_provider}")
         fn = getattr(import_module(self.settings.similarity_module), self.settings.similarity_function)
         return _normalize(fn(patient.model_dump(mode="python"), top_k=top_k))[:top_k]

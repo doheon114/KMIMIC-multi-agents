@@ -24,7 +24,7 @@ class Settings:
     rag_api_key: str = ""
     rag_timeout_seconds: float = 15.0
     similarity_provider: str = "mock"
-    similarity_module: str = "similarity.professor_impl"
+    similarity_module: str = "similarity.snf_retriever"
     similarity_function: str = "find_similar_patients"
 
     @classmethod
@@ -47,7 +47,7 @@ class Settings:
             rag_api_key=os.getenv("RAG_API_KEY", ""),
             rag_timeout_seconds=float(os.getenv("RAG_TIMEOUT_SECONDS", "15")),
             similarity_provider=os.getenv("SIMILARITY_PROVIDER", "mock").strip().lower(),
-            similarity_module=os.getenv("SIMILARITY_MODULE", "similarity.professor_impl"),
+            similarity_module=os.getenv("SIMILARITY_MODULE", "similarity.snf_retriever"),
             similarity_function=os.getenv("SIMILARITY_FUNCTION", "find_similar_patients"),
         )
 

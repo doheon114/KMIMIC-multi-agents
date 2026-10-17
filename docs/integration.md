@@ -40,9 +40,9 @@ data: {"answer":"...","cited":[],"refused":false,"passages":[]}
 
 Enable `RAG_PROVIDER=api`, `RAG_ASK_URL=.../api/ask`; adapt request keys and authentication in `rag/adapter.py` **only** after team confirms. `evidence_found` stays false until independent source/citation verification is defined; do not call returned citations validated evidence.
 
-## 4. Professor similarity Python code
+## 4. SNF similarity Python code
 
-Place the authorized code, e.g. `similarity/professor_impl.py`, in the approved runtime and expose:
+Place the authorized code, e.g. `similarity/snf_retriever.py`, in the approved runtime and expose:
 
 ```python
 def find_similar_patients(patient: dict, top_k: int = 5) -> list[dict]:
@@ -51,7 +51,7 @@ def find_similar_patients(patient: dict, top_k: int = 5) -> list[dict]:
     ...
 ```
 
-Configure `SIMILARITY_PROVIDER=professor`, `SIMILARITY_MODULE=similarity.professor_impl`. Keep the reference cohort/model assets in the authorized environment; do not commit restricted assets. Confirm score definition, features, missing-value handling, cohort isolation, and leakage checks.
+Configure `SIMILARITY_PROVIDER=snf`, `SIMILARITY_MODULE=similarity.snf_retriever`. Keep the reference cohort/model assets in the authorized environment; do not commit restricted assets. Confirm score definition, features, missing-value handling, cohort isolation, and leakage checks.
 
 ## 5. Dataset mapping
 

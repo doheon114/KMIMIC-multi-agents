@@ -1,6 +1,6 @@
 """LangChain @tool facades over replaceable, testable integration adapters.
 
-Keep HTTP details and professor algorithms outside the LangGraph specialist nodes.
+Keep HTTP details and similarity algorithms outside the LangGraph specialist nodes.
 """
 from langchain_core.tools import tool
 from rag.adapter import EvidenceAdapter

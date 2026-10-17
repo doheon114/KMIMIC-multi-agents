@@ -53,7 +53,7 @@
 
 - 전문의 세 명의 JSON 응답을 Pydantic으로 검증하고 위험시 추가 검토 요구
 - RAG는 **팀의 별도 API**를 호출하고 SSE `done` 메시지를 읽음. Chroma를 프로젝트 안에 직접 만드는 강의 3.2와 구분할 것
-- 유사 환자 검색은 교수님 구현을 `similarity/professor_impl.py` 형태로 끼워 넣을 수 있게 만든 인터페이스
+- 유사 환자 검색은 SNF 환자 유사도 구현을 `similarity/snf_retriever.py` 형태로 끼워 넣을 수 있게 만든 인터페이스
 - `Safety`는 LLM 추론이 아니라 코드 규칙을 활용하고 최종 진료 판단을 내리지 않음
 - 로봇은 고정 이미지이며 상태바는 LangGraph 완료 이벤트로 갱신. 내부 토큰 진행률 73% 등은 계산하지 않음
 
@@ -70,7 +70,7 @@
 
 1. **LLM:** `.env`의 `LLM_PROVIDER`, `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY` 확인 → `llm/factory.py`. API가 OpenAI 호환이 아닌 경우 다른 클라이언트 구현 필요.
 2. **RAG:** `RAG_PROVIDER=api`, `RAG_ASK_URL` 확인 → `rag/adapter.py`. 팀 API의 실제 POST 형식, 인증, SSE 이벤트를 검증.
-3. **유사 환자:** `SIMILARITY_PROVIDER=professor`, 교수님 함수 파일 경로 확인 → `similarity/adapter.py`. 점수 정의와 학습·평가 데이터 분리 확인.
+3. **유사 환자:** `SIMILARITY_PROVIDER=snf`, 유사도 함수 파일 경로 확인 → `similarity/adapter.py`. 점수 정의와 학습·평가 데이터 분리 확인.
 4. **데이터:** 현장 컬럼명·단위·시점 확인 → `data/loader.py`. 시간축과 단위가 다른 경우 단순 이름 변경으로 처리하면 안 됨.
 5. **실제 알림:** 현재 발송하지 않음. 의료진 승인·수신자 확인·데이터 사용 허가 전에는 SMS 연동 금지.
 
@@ -91,7 +91,7 @@
 
 ## 종료 조건
 
-`uv run pytest -q` 통과 → `uv run streamlit run app.py` 실행 → Mock 환자 분석 완료 → 진행 상태바 완료 → 최종 보고서 JSON 확인 → 팀 공용 GitHub에 민감 데이터 없이 업로드. API와 교수님 함수는 현장에서 연결할 부분으로 명시합니다.
+`uv run pytest -q` 통과 → `uv run streamlit run app.py` 실행 → Mock 환자 분석 완료 → 진행 상태바 완료 → 최종 보고서 JSON 확인 → 팀 공용 GitHub에 민감 데이터 없이 업로드. API와 유사도 함수는 현장에서 연결할 부분으로 명시합니다.
 # Token-Efficient A: updated graph
 
 Start with `agents/graph.py` and identify both `add_conditional_edges` calls:
