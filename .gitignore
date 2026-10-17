@@ -1,2 +1,5 @@
 __pycache__/
 *.patch
+
+# API keys and key settings
+.env

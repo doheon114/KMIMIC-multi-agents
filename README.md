@@ -13,6 +13,7 @@ The system integrates specialized clinical AI agents, retrieval-augmented genera
 ## 1. System Architecture
 
 ```mermaid
+%%{init: {"flowchart": {"htmlLabels": false, "padding": 20, "nodeSpacing": 40, "rankSpacing": 50}}}%%
 flowchart TD
     A["Patient Input"] --> B{"Input Precheck"}
     B -->|"Insufficient Data"| C["INSUFFICIENT_DATA"]
@@ -69,6 +70,10 @@ uv run streamlit run app.py
 The default `mock` mode runs locally without API keys or network access.
 
 To configure external LLM or RAG services, copy `.env.example` to `.env` and provide the required settings.
+
+The **KHDP.ai API key** is read from `KHDP_API_KEY` (used for the chief and mini LLMs unless `LLM_API_KEY` / `MINI_LLM_API_KEY` are set). Set `LLM_PROVIDER=openai_compatible`, `LLM_BASE_URL`, and `LLM_MODEL` for the KHDP.ai endpoint.
+
+> 🔒 `.env` (API keys and other key settings) is listed in `.gitignore` and is not committed. Only `.env.example` with empty placeholders is tracked.
 
 ## 4. Project Structure
 
