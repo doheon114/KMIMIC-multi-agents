@@ -131,9 +131,20 @@ hf-pathguard/
 
 *Streamlit dashboard for multi-agent clinical review, evidence retrieval, safety assessment, and batch evaluation.*
 
-## 6. Contact
+## 6. Team & Contact
 
-**Seoyoung Park**
+**Clinical Datathon 2026 · Team 10**
+
+| Name | Email |
+|---|---|
+| Do Heon Kim | [doheon135790@gmail.com](mailto:doheon135790@gmail.com) |
+| Da-Eun Yoon | [yoonda05@gmail.com](mailto:yoonda05@gmail.com) |
+| Jieun Shin | [godzeun@gmail.com](mailto:godzeun@gmail.com) |
+| Seoyoung Park | [psy091222222@gmail.com](mailto:psy091222222@gmail.com) |
+| Keumbi Lee | [nancygb111@gmail.com](mailto:nancygb111@gmail.com) |
+| Minseok Song | [minseok.song@gmail.com](mailto:minseok.song@gmail.com) |
+
+**Seoyoung Park** (repository maintainer)
 
 Email: [psy091222222@gmail.com](mailto:psy091222222@gmail.com)
 
